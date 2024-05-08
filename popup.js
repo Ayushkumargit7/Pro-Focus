@@ -31,36 +31,80 @@ function showAllFields() {
     }
 }
 
-// // Load state from storage when the popup is opened
-// window.addEventListener('load',function() {
-//     chrome.storage.sync.get(['seconds', 'minutes', 'hours', 'timerStatus','removeAllFieldCheckbox'], function(data) {
-//         if (data.seconds !== undefined) seconds = data.seconds;
-//         if (data.minutes !== undefined) minutes = data.minutes;
-//         if (data.hours !== undefined) hours = data.hours;
-//         if (data.timerStatus !== undefined) timerStatus = data.timerStatus;
-//         if (data.removeAllFieldCheckbox !== undefined) document.getElementById('removeAllFieldCheckbox').checked = data.removeAllFieldCheckbox;
+removeCurrentTopicCheckbox.addEventListener("click", async () => {
+    // get the current active tab
+    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-//         if (timerStatus === "started") {
-//             interval = window.setInterval(stopwatch, 1000);
-//             document.getElementById("start").innerHTML = "<i class='fas fa-pause'></i>";
-//         }
+    chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    function: (removeCurrentTopicCheckbox.checked) ? removeUnrelatedVideos : showAllFields,//showAllFields see it .
+    });
+});
 
-//         updateClockDisplay();
-//         // stopwatch();
-//     });
-// });
-// // Save state to storage when the popup is closed
-// window.addEventListener('unload', function() {
-//     chrome.storage.sync.set({
-//         'seconds': seconds,
-//         'minutes': minutes,
-//         'hours': hours,
-//         'timerStatus': timerStatus,
-//         // 'removeAllFieldCheckbox': checked
-//     });
-// });
+// Function to remove unrelated videos
+function removeUnrelatedVideos() {
 
+    function compareTwoStrings(first, second) {
+        first = first.replace(/\s+/g, '')
+        second = second.replace(/\s+/g, '')
+    
+        if (first === second) return 1; // identical or empty
+        if (first.length < 2 || second.length < 2) return 0; // if either is a 0-letter or 1-letter string
+    
+        let firstBigrams = new Map();
+        for (let i = 0; i < first.length - 1; i++) {
+            const bigram = first.substring(i, i + 2);
+            const count = firstBigrams.has(bigram)
+                ? firstBigrams.get(bigram) + 1
+                : 1;
+    
+            firstBigrams.set(bigram, count);
+        };
+    
+        let intersectionSize = 0;
+        for (let i = 0; i < second.length - 1; i++) {
+            const bigram = second.substring(i, i + 2);
+            const count = firstBigrams.has(bigram)
+                ? firstBigrams.get(bigram)
+                : 0;
+    
+            if (count > 0) {
+                firstBigrams.set(bigram, count - 1);
+                intersectionSize++;
+            }
+        }
+    
+        return (2.0 * intersectionSize) / (first.length + second.length - 2);
+    }
 
+    // Get the title of the current video
+    let currentVideoTitle = document.querySelector('#title.style-scope.ytd-watch-metadata').innerText;
+
+    // Get all recommended videos
+    let recommendedVideos = document.querySelectorAll('ytd-compact-video-renderer');
+
+    // Iterate over each recommended video
+    recommendedVideos.forEach(video => {
+        // Get the title of the recommended video
+        let videoTitle = video.querySelector('#video-title').innerText;
+
+        let similarity = compareTwoStrings(currentVideoTitle, videoTitle);
+
+        // Debugging output: Log the distance
+        console.log(`Title: ${videoTitle}, Distance: ${similarity}`);
+        console.log(similarity);
+
+        // Set a threshold for relatedness
+        const threshold = 0.29; // Adjust this value as needed
+
+        // If the distance is below the threshold, consider them related and show the video
+        if (similarity <= threshold) {
+            video.style.display = 'none'; // or 'inline' depending on the video's default display property
+        } else {
+            video.style.display = 'block';
+        }
+    });
+}
 
 
 const clock = document.getElementById("clock");
@@ -103,6 +147,7 @@ document.getElementById('removeAllFieldCheckbox').addEventListener('change', fun
 });
 
 document.getElementById('start').addEventListener('click', function() {
+
     if(timerStatus === "stopped") {
         // document.getElementById("start").innerHTML = "Resume";
         document.getElementById("start").style.display = "none";
@@ -181,23 +226,5 @@ document.getElementById('removeCurrentTopicCheckbox').addEventListener('change',
     chrome.storage.sync.set({
         'removeCurrentTopicCheckbox': this.checked
     });
-});
-
-chrome.storage.sync.get(['removeCurrentTopicCheckbox'], function(data) {
-    if(data.removeCurrentTopicCheckbox) {
-        let currentVideoTitle = document.querySelector('#title.style-scope.ytd-watch-metadata').innerText;
-        let recommendedVideos = document.querySelectorAll('#video-title.style-scope.ytd-compact-video-renderer');
-
-        recommendedVideos.forEach(video => {
-            let videoTitle = video.innerText;
-            let currentVideoWords = currentVideoTitle.split(' ');
-
-            currentVideoWords.forEach(word => {
-                if(videoTitle.includes(word)) {
-                    video.parentElement.parentElement.style.display = 'none';
-                }
-            });
-        });
-    }
 });
 
