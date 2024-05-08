@@ -95,7 +95,7 @@ function removeUnrelatedVideos() {
         console.log(similarity);
 
         // Set a threshold for relatedness
-        const threshold = 0.29; // Adjust this value as needed
+        const threshold = 0.29; 
 
         // If the distance is below the threshold, consider them related and show the video
         if (similarity <= threshold) {
